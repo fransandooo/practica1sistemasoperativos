@@ -135,7 +135,7 @@ void detectarPatrones(Usuario usuarios[MAX_USERS]) {
 
     FILE *logfile;
 
-    logfile = fopen("filelog.log", "a+");
+    logfile = fopen("file_log.log", "a+");
 
     // Patrón 1: Más de 5 transacciones en una misma hora para un mismo usuario.
     for (int i = 0; i < MAX_USERS; i++) {
