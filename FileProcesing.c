@@ -6,7 +6,7 @@
 #include <semaphore.h>
 #include <unistd.h>
 
-#define MAX_LINE_LENGTH 256
+#define MAX_LINE_LENGTH 400 
 #define MAX_FILE_COUNT 100 // Máximo número de ficheros por sucursal
 #define MAX_SUCURSALES 10 // Máximo número de sucursales
 
@@ -163,7 +163,7 @@ void inicializarFicheros(){ /*Funcion que se encraga de incializar los ficheros 
     fclose(consolidado);/*Cerramos nuestro archivo*/
 
     // Crear el archivo LOG_FILE
-    logFile = fopen(LOG_FILE, "a+");/*como ruta ponemos la guardada en la variable extraida de nuestro fichero de configuracion*/
+    logFile = fopen(LOG_FILE, "w");/*como ruta ponemos la guardada en la variable extraida de nuestro fichero de configuracion*/
     if (logFile == NULL) {/*en caso de que no se haya creado bien nuestro archivo log*/
         printf("Error al abrir el archivo de registro (%s)\n", LOG_FILE);
         return;
@@ -224,7 +224,14 @@ void *procesarSucursal(void *arg) {/*Funcion que se encarga de procesar cada una
 
 
         char rutaFichero[MAX_LINE_LENGTH];
-        snprintf(rutaFichero, sizeof(rutaFichero), "%s/%s", PATH_FILES, sucursal->ficheros[i]);/*neceistamos construir la ruta completa de cada archivo de la sucursal, la cual
+
+        int max_length = sizeof(PATH_FILES) + strlen(sucursal->ficheros[i]) + 2; // Plus 2 for the '/' and null terminator
+        int actual_length = (max_length < MAX_LINE_LENGTH) ? max_length : MAX_LINE_LENGTH;
+        snprintf(rutaFichero, actual_length, "%s/%s", PATH_FILES, sucursal->ficheros[i]);
+
+
+
+        /*snprintf(rutaFichero, sizeof(rutaFichero), "%s/%s", PATH_FILES, sucursal->ficheros[i]);/*neceistamos construir la ruta completa de cada archivo de la sucursal, la cual
         va a estar conformada por el directorio de nuestro archivos puesto en la configuracion y el nombre del fichero de la sucursal guardado dentro de nuestro array de nombres de ficheros
         creado con anterioridad*/
 
