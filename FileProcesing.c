@@ -56,7 +56,7 @@ void LeerConfig(const char *nombreArchivo) {
     file = fopen(nombreArchivo, "r");
 
     if (!file) { //if para en caso de que no se haya podido abrir el archivo de configuracion
-        perror("No se pudo abrir el archivo");
+        perror("No se ha podido abrir el archivo");
         exit(EXIT_FAILURE);
     }
 
