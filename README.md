@@ -16,7 +16,4 @@
     para asegurar su funcionamiento correcto, y encontrar posibles errores dentro del propio
     programa. 
 
-
-
-
 # CREADA POR: FRANCISCO SANDOVAL Y MIGUEL SANCHEZ
