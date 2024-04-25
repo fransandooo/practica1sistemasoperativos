@@ -275,6 +275,8 @@ void *procesarSucursal(void *arg) {/*Funcion que se encarga de procesar cada una
 
 int main() {
 
+    while(1){
+
     /*Llamamos primero a la funcion que se encarga de extraer la informacion de nuestro archivo de configuracion*/
     LeerConfig("fp.conf");
 
@@ -308,6 +310,9 @@ int main() {
 
         pthread_mutex_destroy(&mutex);/*Destruimos nuestro mutex para liberar recursos*/
 
+        sleep(10);
+
+    }
 
     return EXIT_SUCCESS;
 }
