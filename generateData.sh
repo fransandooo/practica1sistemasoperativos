@@ -18,7 +18,7 @@ num_lineas=100
 sucursal=""
 tipo_operacion=""
 num_usuarios=10
-directorio_salida=$(dirname "$0")
+directorio_salida=$(dirname "$0")/archivos
 
 # Analizar argumentos de línea de comandos
 while [[ $# -gt 0 ]]; do
@@ -79,6 +79,10 @@ for ((i = 1; i <= num_lineas; i++)); do
     # Generar una hora aleatoria para la fecha de finalización entre las 00:00 y las 23:59
     hora_fin=$((RANDOM%24))
     minuto_fin=$((RANDOM%60))
+
+    # Generar un importe aleatorio entre -1000 y 1000
+    importe=$((RANDOM%2001-1000))
+
     
     # Combinar la fecha de inicio con la nueva hora de finalización
     fecha_fin=$(date -d "$fecha_inicio_sin_hora $hora_fin:$minuto_fin" +"%d/%m/%Y %H:%M")

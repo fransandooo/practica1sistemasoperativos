@@ -154,18 +154,20 @@ void inicializarFicheros(){ /*Funcion que se encraga de incializar los ficheros 
     FILE *consolidado, *logFile; /*hacemos dos punteros de tipo FILE, para nuestro ficheros*/
 
     // Crear y escribir en el archivo consolidado.csv
-    consolidado = fopen("consolidado.csv", "w"); /*creamos nuestro archivo consolidado.csv*/
+    consolidado = fopen("consolidado.csv", "a"); /*creamos nuestro archivo consolidado.csv*/
 
     if (consolidado == NULL) {/*en caso de que no se haya creado correctamente*/
         printf("Error al abrir el archivo consolidado.csv\n");
         return;
     }
-    fprintf(consolidado, "IdOperacion;FECHA_INICIO;FECHA_FIN;IdUsuario;IdTipoOperacion;NoOperacion;Importe;Estado\n"); /*Para poder representar la informacion como está
+
+
+    /*fprintf(consolidado, "IdOperacion;FECHA_INICIO;FECHA_FIN;IdUsuario;IdTipoOperacion;NoOperacion;Importe;Estado\n"); Para poder representar la informacion como está
     especificada ponemos un primera linea en nuestro archivo csv para que sea el encabezado de este mismo*/
     fclose(consolidado);/*Cerramos nuestro archivo*/
 
     // Crear el archivo LOG_FILE
-    logFile = fopen(LOG_FILE, "w");/*como ruta ponemos la guardada en la variable extraida de nuestro fichero de configuracion*/
+    logFile = fopen(LOG_FILE, "a");/*como ruta ponemos la guardada en la variable extraida de nuestro fichero de configuracion*/
     if (logFile == NULL) {/*en caso de que no se haya creado bien nuestro archivo log*/
         printf("Error al abrir el archivo de registro (%s)\n", LOG_FILE);
         return;
@@ -206,7 +208,7 @@ void *procesarSucursal(void *arg) {/*Funcion que se encarga de procesar cada una
     FILE *archivoConsolidado, *logFile;/*Punteros de tipo FILE hacia los dos ficheros que vamos a utilizar*/
 
     archivoConsolidado = fopen("consolidado.csv", "a");
-    logFile = fopen(LOG_FILE, "a+");
+    logFile = fopen(LOG_FILE, "a");
 
     fprintf(logFile, "[%s] Procesando sucursal : SU00%d\n", obtenerFechaHora(), sucursal->indice);/*Guardamos un record en el log file de que sucursal se esta procesando*/
 
@@ -323,7 +325,7 @@ int main() {
 
         pthread_mutex_destroy(&mutex);/*Destruimos nuestro mutex para liberar recursos*/
 
-        sleep(10);
+        sleep(SIMULATE_SLEEP);
 
     }
 
