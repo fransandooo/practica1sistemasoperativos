@@ -9,6 +9,8 @@
 #define MAX_LINE_LENGTH 400 
 #define MAX_FILE_COUNT 100 // Máximo número de ficheros por sucursal
 #define MAX_SUCURSALES 10 // Máximo número de sucursales
+#define MAX_PATH_LENGTH 500
+#define PATH_CONSOLIDATED_FILES "consolidated_files" // Directorio de destino de los ficheros procesados
 
 pthread_mutex_t mutex;
 
@@ -258,6 +260,17 @@ void *procesarSucursal(void *arg) {/*Funcion que se encarga de procesar cada una
         }
 
         fclose(ficheroSucursal);/*cerramos nuestro fichero*/
+
+        // Construir la ruta de destino
+        char rutaDestino[MAX_PATH_LENGTH];
+        snprintf(rutaDestino, sizeof(rutaDestino), "%s/%s", PATH_CONSOLIDATED_FILES, sucursal->ficheros[i]);
+
+        // Mover el fichero
+        if (rename(rutaFichero, rutaDestino) != 0) {
+            fprintf(stderr, "Error moviendo el fichero %s a %s\n", rutaFichero, rutaDestino);
+        } else {
+            printf("Fichero %s movido a %s\n", rutaFichero, rutaDestino);
+        }
 
         pthread_mutex_unlock(&mutex);/*y desbloqueamos ya nuestro semaforo ya que hemos terminado con nuestra zona critica*/
 
