@@ -5,14 +5,24 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <fcntl.h>
+#include <sys/mman.h>
+#include <signal.h>
 
 #define MAX_LINE_LENGTH 400 
 #define MAX_FILE_COUNT 100 // Máximo número de ficheros por sucursal
 #define MAX_SUCURSALES 10 // Máximo número de sucursales
-#define MAX_PATH_LENGTH 500
-#define PATH_CONSOLIDATED_FILES "consolidated_files" // Directorio de destino de los ficheros procesados
+#define MAX_PATH_LENGTH 100000
+#define SHM_SIZE 1024 * 1024 // 1MB de memoria compartida
 
 pthread_mutex_t mutex;
+
+int shm_fd;
+char *memoria_compartida = NULL;
 
 typedef struct { // Hemos decidido crear un struct para defenir nuestras sucursales, ya que todas van a tener unas misamas caracteristicas.
     int indice; //Asignamos un indice a cada sucursal para así poder diferenciarlas
@@ -24,6 +34,35 @@ typedef struct { // Hemos decidido crear un struct para defenir nuestras sucursa
 
 } Sucursal;
 
+// Estructura para almacenar el consolidado de operaciones bancarias
+typedef struct {
+    char consolidado[MAX_LINE_LENGTH]; // Suponiendo que el consolidado sea una cadena de caracteres
+} Consolidado;
+
+void cleanup(int signum) {
+    printf("\nCerrando el programa...\n");
+
+    // Crear el archivo cosolidado.csv y escribir la información
+    FILE *todosucurs = fopen("consolidado.csv", "w");
+    if (todosucurs != NULL) {
+        fprintf(todosucurs, "%s\n", memoria_compartida);
+        fclose(todosucurs);
+    } else {
+        perror("Error al crear el archivo todosucurs");
+    }
+
+    // Desvincular y liberar la memoria compartida
+    if (munmap(memoria_compartida, SHM_SIZE) == -1) {
+        perror("Error al desvincular la memoria compartida");
+    }
+    close(shm_fd);
+    shm_unlink("/my_shared_memory");
+
+    printf("Programa cerrado correctamente.\n");
+    exit(EXIT_SUCCESS);
+}
+
+
 
 /*Las siguientes variables declaradas son las que extraemos de nuestro archivo de configuracion (fp.conf)*/
 char line[MAX_LINE_LENGTH];
@@ -33,6 +72,9 @@ char LOG_FILE[MAX_LINE_LENGTH];
 int NUM_SUCURSALES = 0;
 int NUM_PROCESOS = 0;
 int SIMULATE_SLEEP;
+int SIZE_FP = 0;
+
+
 
 char *obtenerFechaHora() { /*Funcion que se encarga de obtener la fecha para asi poder guardar el momento en el que se realizan las diferentes cosas dentro de nuestros
 programas y poder almacenar la informacion dentro de nuestro archivo de log*/
@@ -83,6 +125,8 @@ void LeerConfig(const char *nombreArchivo) {
                 NUM_PROCESOS = atoi(value);
             } else if (strcmp(key, "SIMULATE_SLEEP") == 0) {
                 SIMULATE_SLEEP = atoi(value);
+            }else if(strcmp(key, "SIZE_FP") == 0){
+                SIZE_FP = atoi(value);
             }
         }
     }
@@ -101,10 +145,32 @@ void LeerConfig(const char *nombreArchivo) {
     printf("NUM SUCURSALES: %d\n", NUM_SUCURSALES);
     printf("NUM PROCESOS: %d\n", NUM_PROCESOS);
     printf("SIMULATE SLEEP: %d\n", SIMULATE_SLEEP);
+    printf("SIZE_FP: %d\n", SIZE_FP);
 
 
 
 }
+
+void cargarEstructura() {
+    if (mkdir("files_data", 0700) != 0) {
+        perror("Error creating directory files_data");
+        return;
+    }
+
+    for (int i = 1; i <= NUM_SUCURSALES; i++) {
+        char path[50];
+        snprintf(path, sizeof(path), "files_data/SU00%d", i);
+        if (mkdir(path, 0700) != 0) {
+            perror("Error creating subdirectory");
+            return;
+        }
+    }
+}
+
+
+
+
+
 
 void contarFicheros(Sucursal *sucursales) { /*Funcion que se encarga de contar los ficheros que le corresponden a cada sucursal asi como de almacenar los nombres de esos
 ficheros dentro de las structuras de las distintas sucursles*/
@@ -151,20 +217,9 @@ ficheros dentro de las structuras de las distintas sucursles*/
 
 void inicializarFicheros(){ /*Funcion que se encraga de incializar los ficheros requeridos por el programa*/
 
-    FILE *consolidado, *logFile; /*hacemos dos punteros de tipo FILE, para nuestro ficheros*/
-
-    // Crear y escribir en el archivo consolidado.csv
-    consolidado = fopen("consolidado.csv", "a"); /*creamos nuestro archivo consolidado.csv*/
-
-    if (consolidado == NULL) {/*en caso de que no se haya creado correctamente*/
-        printf("Error al abrir el archivo consolidado.csv\n");
-        return;
-    }
+    FILE *logFile; /*hacemos dos punteros de tipo FILE, para nuestro ficheros*/
 
 
-    /*fprintf(consolidado, "IdOperacion;FECHA_INICIO;FECHA_FIN;IdUsuario;IdTipoOperacion;NoOperacion;Importe;Estado\n"); Para poder representar la informacion como está
-    especificada ponemos un primera linea en nuestro archivo csv para que sea el encabezado de este mismo*/
-    fclose(consolidado);/*Cerramos nuestro archivo*/
 
     // Crear el archivo LOG_FILE
     logFile = fopen(LOG_FILE, "a");/*como ruta ponemos la guardada en la variable extraida de nuestro fichero de configuracion*/
@@ -183,13 +238,13 @@ void inicializarFicheros(){ /*Funcion que se encraga de incializar los ficheros 
     fprintf(logFile, "[%s] NUM PROCESOS: %d\n", obtenerFechaHora(), NUM_PROCESOS);
     fprintf(logFile, "[%s] SIMULATE SLEEP: %d\n", obtenerFechaHora(), SIMULATE_SLEEP);
 
-    fprintf(logFile, "[%s] Archivos creados correctamente: consolidado.csv y %s\n", obtenerFechaHora() , LOG_FILE);
+    fprintf(logFile, "[%s] Archivos creados correctamente:  %s\n", obtenerFechaHora() , LOG_FILE);
 
     fclose(logFile);/*Cerramos nuestro fichero de log*/
 
     printf("---------------------------------------------------------------------\n");
 
-    printf("Archivos creados correctamente: consolidado.csv y %s\n", LOG_FILE);
+    printf("Archivos creados correctamente: %s\n", LOG_FILE);
 
     printf("---------------------------------------------------------------------\n");
 
@@ -197,105 +252,91 @@ void inicializarFicheros(){ /*Funcion que se encraga de incializar los ficheros 
 
 
 
-
-void *procesarSucursal(void *arg) {/*Funcion que se encarga de procesar cada una de las sucursales es decir, relizar el archivo consolidado.csv, sucursal por sucursal*/
-
-
-    Sucursal *sucursal = (Sucursal *)arg;/*Puntero que se encarga de procesar la sucursal que vamos a realizar*/
+void *procesarSucursal(void *arg) {
+    Sucursal *sucursal = (Sucursal *)arg;
 
     printf("Procesando sucursal %d...\n", sucursal->indice);
     
-    FILE *archivoConsolidado, *logFile;/*Punteros de tipo FILE hacia los dos ficheros que vamos a utilizar*/
+    // Escribir la información en la memoria compartida
+    pthread_mutex_lock(&mutex);
+    sprintf(memoria_compartida, "[%s] Procesando sucursal : SU00%d\n", obtenerFechaHora(), sucursal->indice);
+    pthread_mutex_unlock(&mutex);
 
-    archivoConsolidado = fopen("consolidado.csv", "a");
-    logFile = fopen(LOG_FILE, "a");
-
-    fprintf(logFile, "[%s] Procesando sucursal : SU00%d\n", obtenerFechaHora(), sucursal->indice);/*Guardamos un record en el log file de que sucursal se esta procesando*/
-
-
-    if (archivoConsolidado == NULL || logFile == NULL) {/*comprobamos si nuestros archivos no se ha podido abrir para utilizar*/
-        printf("No se pudo abrir el archivo para escritura\n");
-        pthread_exit(NULL);
-    }
-
-    for (int i = 0; i < sucursal->num_ficheros; i++) {/*Bucle para recorrer el array de ficheros de cada sucursal y ir uno a uno, lo hacemos haciendo uso del numero de ficheros
-    que tiene cada sucursal en su estructura, ya analizado con anterioridad*/
-
-
-        /*Dentro de este bucle for comienza una zona critica del prgrama, esto se debe a que vamos a hacer uso de hilos que vana a intentar acceder y escribir en un mismo fichero
-        varios a la vez, para poder preever esto y tener en cuenta nuestra zona critica haremos uso de un semaforo binario, restringiendo asi el acceso a dicho archivo a un proceso cada vez*/
-        pthread_mutex_lock(&mutex);
-
-
-        char rutaFichero[MAX_LINE_LENGTH];
-
-        int max_length = sizeof(PATH_FILES) + strlen(sucursal->ficheros[i]) + 2; // Plus 2 for the '/' and null terminator
-        int actual_length = (max_length < MAX_LINE_LENGTH) ? max_length : MAX_LINE_LENGTH;
-        snprintf(rutaFichero, actual_length, "%s/%s", PATH_FILES, sucursal->ficheros[i]);
-
-
-
-        /*snprintf(rutaFichero, sizeof(rutaFichero), "%s/%s", PATH_FILES, sucursal->ficheros[i]);/*neceistamos construir la ruta completa de cada archivo de la sucursal, la cual
-        va a estar conformada por el directorio de nuestro archivos puesto en la configuracion y el nombre del fichero de la sucursal guardado dentro de nuestro array de nombres de ficheros
-        creado con anterioridad*/
-
-        FILE *ficheroSucursal = fopen(rutaFichero, "r");/*Abirmos nuestro archivo de la sucursal que vamos a procesar haciendo usao de la ruta sacada antes, en formato de lectura solo*/
-
+    for (int i = 0; i < sucursal->num_ficheros; i++) {
+        char rutaFichero[MAX_PATH_LENGTH];
+        snprintf(rutaFichero, sizeof(rutaFichero), "%s/%s", PATH_FILES, sucursal->ficheros[i]);
+        FILE *ficheroSucursal = fopen(rutaFichero, "r");
+        
         if (ficheroSucursal == NULL) {
             printf("No se pudo abrir el fichero %s\n", rutaFichero);
-            continue; // Continuar con el siguiente fichero
+            continue;
         }
 
-        // Leer y descartar la primera línea, que es el infice del csv
         char linea[MAX_LINE_LENGTH];
         if (fgets(linea, MAX_LINE_LENGTH, ficheroSucursal) == NULL) {
-            // Manejar el caso en que el fichero esté vacío o no se pueda leer
             printf("No se pudo leer la primera línea del fichero %s\n", rutaFichero);
             fclose(ficheroSucursal);
-            continue; // Continuar con el siguiente fichero
+            continue;
         }
 
-        // Leer y escribir el resto del contenido del fichero
+        pthread_mutex_lock(&mutex);
         while (fgets(linea, MAX_LINE_LENGTH, ficheroSucursal) != NULL) {
-            fputs(linea, archivoConsolidado);
-            fprintf(logFile, "[%s] Archivo: %s procesado \n", obtenerFechaHora(),rutaFichero);
+            strcat(memoria_compartida, linea); // Concatenar el contenido de linea con la memoria compartida
         }
+        pthread_mutex_unlock(&mutex);
 
-        fclose(ficheroSucursal);/*cerramos nuestro fichero*/
+        fclose(ficheroSucursal);
 
         // Construir la ruta de destino
         char rutaDestino[MAX_PATH_LENGTH];
-        snprintf(rutaDestino, sizeof(rutaDestino), "%s/%s", PATH_CONSOLIDATED_FILES, sucursal->ficheros[i]);
-
+        snprintf(rutaDestino, sizeof(rutaDestino), "files_data/SU00%d/%s", sucursal->indice, sucursal->ficheros[i]);
         // Mover el fichero
         if (rename(rutaFichero, rutaDestino) != 0) {
             fprintf(stderr, "Error moviendo el fichero %s a %s\n", rutaFichero, rutaDestino);
         } else {
             printf("Fichero %s movido a %s\n", rutaFichero, rutaDestino);
         }
-
-        pthread_mutex_unlock(&mutex);/*y desbloqueamos ya nuestro semaforo ya que hemos terminado con nuestra zona critica*/
-
     }
 
-    /*Cerramos el resto de archivos utilizados*/
-    fclose(logFile);
-    fclose(archivoConsolidado);
     printf("Procesamiento de sucursal %d completado.\n", sucursal->indice);
-
-
-
     pthread_exit(NULL);
 }
 
+
 int main() {
+
+    /*Llamamos primero a la funcion que se encarga de extraer la informacion de nuestro archivo de configuracion*/
+    LeerConfig("./conf/fp.conf");
+
+    inicializarFicheros();/*Inicializamos nuestro ficheros*/
+
+    cargarEstructura();/*Cargamos nuestra estructura de ficheros*/
+
+    // Registrar el manejador de señales para SIGINT (Ctrl+C)
+    signal(SIGINT, cleanup);
+
+    // Crear la memoria compartida
+    shm_fd = shm_open("/my_shared_memory", O_CREAT | O_RDWR, 0666);
+    if (shm_fd == -1) {
+        perror("Error al crear la memoria compartida");
+        return EXIT_FAILURE;
+    }
+    if (ftruncate(shm_fd, SHM_SIZE) == -1) {
+        perror("Error al truncar la memoria compartida");
+        return EXIT_FAILURE;
+    }
+    memoria_compartida = mmap(0, SHM_SIZE, PROT_WRITE, MAP_SHARED, shm_fd, 0);
+    if (memoria_compartida == MAP_FAILED) {
+        perror("Error al mapear la memoria compartida");
+        return EXIT_FAILURE;
+    }
+
+
+
 
     while(1){
 
-    /*Llamamos primero a la funcion que se encarga de extraer la informacion de nuestro archivo de configuracion*/
-    LeerConfig("fp.conf");
 
-    inicializarFicheros();/*Inicializamos nuestro ficheros*/
 
     Sucursal sucursales[NUM_SUCURSALES];/*Creamos un array de estrucutras de sucursales para almacenarlas con tamaño igual al NUM_SUCURSALES extraido de la configuracion*/
 
