@@ -289,13 +289,16 @@ void *procesarSucursal(void *arg) {/*Funcion que se encarga de procesar cada una
 }
 
 int main() {
-
-    while(1){
-
+    
     /*Llamamos primero a la funcion que se encarga de extraer la informacion de nuestro archivo de configuracion*/
     LeerConfig("fp.conf");
 
     inicializarFicheros();/*Inicializamos nuestro ficheros*/
+
+
+    while(1){
+
+
 
     Sucursal sucursales[NUM_SUCURSALES];/*Creamos un array de estrucutras de sucursales para almacenarlas con tamaño igual al NUM_SUCURSALES extraido de la configuracion*/
 
