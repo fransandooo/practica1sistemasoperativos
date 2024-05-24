@@ -5,6 +5,8 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 #define MAX_LINE_LENGTH 400 
 #define MAX_FILE_COUNT 100 // Máximo número de ficheros por sucursal
@@ -105,6 +107,29 @@ void LeerConfig(const char *nombreArchivo) {
 
 
 }
+
+void cargarEstructura() {
+    if (mkdir("files_data", 0700) != 0) {
+        perror("Error creating directory files_data");
+        return;
+    }
+
+    for (int i = 1; i <= NUM_SUCURSALES; i++) {
+        char path[50];
+        snprintf(path, sizeof(path), "files_data/SU00%d", i);
+        if (mkdir(path, 0700) != 0) {
+            perror("Error creating subdirectory");
+            return;
+        }
+    }
+}
+
+
+
+
+
+
+
 
 void contarFicheros(Sucursal *sucursales) { /*Funcion que se encarga de contar los ficheros que le corresponden a cada sucursal asi como de almacenar los nombres de esos
 ficheros dentro de las structuras de las distintas sucursles*/
@@ -289,11 +314,13 @@ void *procesarSucursal(void *arg) {/*Funcion que se encarga de procesar cada una
 }
 
 int main() {
-    
+
     /*Llamamos primero a la funcion que se encarga de extraer la informacion de nuestro archivo de configuracion*/
     LeerConfig("fp.conf");
 
     inicializarFicheros();/*Inicializamos nuestro ficheros*/
+
+    cargarEstructura();/*Cargamos nuestra estructura de ficheros*/
 
 
     while(1){
