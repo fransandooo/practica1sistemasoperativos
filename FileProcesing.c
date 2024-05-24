@@ -12,7 +12,6 @@
 #define MAX_FILE_COUNT 100 // Máximo número de ficheros por sucursal
 #define MAX_SUCURSALES 10 // Máximo número de sucursales
 #define MAX_PATH_LENGTH 500
-#define PATH_CONSOLIDATED_FILES "consolidated_files" // Directorio de destino de los ficheros procesados
 
 pthread_mutex_t mutex;
 
@@ -123,10 +122,6 @@ void cargarEstructura() {
         }
     }
 }
-
-
-
-
 
 
 
@@ -290,8 +285,8 @@ void *procesarSucursal(void *arg) {/*Funcion que se encarga de procesar cada una
 
         // Construir la ruta de destino
         char rutaDestino[MAX_PATH_LENGTH];
-        snprintf(rutaDestino, sizeof(rutaDestino), "%s/%s", PATH_CONSOLIDATED_FILES, sucursal->ficheros[i]);
-
+        
+        snprintf(rutaDestino, sizeof(rutaDestino), "files_data/SU00%d/%s", sucursal->indice, sucursal->ficheros[i]);
         // Mover el fichero
         if (rename(rutaFichero, rutaDestino) != 0) {
             fprintf(stderr, "Error moviendo el fichero %s a %s\n", rutaFichero, rutaDestino);
